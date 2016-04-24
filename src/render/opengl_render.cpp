@@ -5,13 +5,47 @@
 #include "render/opengl_render.h"
 
 
-std::string const opengl_render::VERTEX_SHADER_SOURCE_PATH   = "shader/fbo-rtt.vert";
-std::string const opengl_render::FRAGMENT_SHADER_SOURCE_PATH = "shader/fbo-rtt.frag";
+std::string const opengl_render::VERTEX_SHADER =
+"#version 400 core\n"
+"precision highp float;\n"
+"precision highp int;\n"
+
+"layout(std140, column_major) uniform;\n"
+
+"const int VertexCount = 3;\n"
+"const vec2 Position[VertexCount] = vec2[](\n"
+"	vec2(-1.0,-1.0),\n"
+"	vec2( 3.0,-1.0),\n"
+"	vec2(-1.0, 3.0));\n"
+
+"void main() {\n"	
+"	gl_Position = vec4(Position[gl_VertexID], 0.0, 1.0);\n"
+"}\n";
+
+std::string const opengl_render::FRAGMENT_SHADER =
+"#version 400 core\n"
+"#define FRAG_COLOR 0\n"
+
+"precision highp float;\n"
+"precision highp int;\n"
+"layout(std140, column_major) uniform;\n"
+
+"uniform sampler2D Diffuse;\n"
+
+"in vec4 gl_FragCoord;\n"
+"layout(location = FRAG_COLOR, index = 0) out vec4 Color;\n"
+
+"void main()\n"
+"{\n"
+"    vec2 TextureSize = vec2(textureSize(Diffuse, 0));\n"
+"    Color = texture(Diffuse, gl_FragCoord.xy / TextureSize);\n"
+"}";
+
 
 opengl_render::opengl_render(glm::uvec2 const & size)
     : program_({
-        { GL_VERTEX_SHADER,   VERTEX_SHADER_SOURCE_PATH   },
-        { GL_FRAGMENT_SHADER, FRAGMENT_SHADER_SOURCE_PATH }
+        { GL_VERTEX_SHADER,   VERTEX_SHADER   },
+        { GL_FRAGMENT_SHADER, FRAGMENT_SHADER }
       })
     , texture_(size)
     , shader_diffuse_(glGetUniformLocation(program_, "Diffuse"))

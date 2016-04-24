@@ -21,8 +21,7 @@ void init_graphics()
     glfwMakeContextCurrent(window);
 
     glewExperimental = GL_TRUE;
-    int ret = glewInit();
-    if (GLEW_OK != ret)
+    if (GLEW_OK != glewInit())
         throw std::runtime_error("Can't initialize GLEW.");
     glGetError();
 }

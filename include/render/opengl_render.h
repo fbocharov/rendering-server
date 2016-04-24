@@ -29,6 +29,6 @@ private:
 
 private:
     static size_t const TEXTURE_COUNT = 3;
-    static std::string const VERTEX_SHADER_SOURCE_PATH;
-    static std::string const FRAGMENT_SHADER_SOURCE_PATH;
+    static std::string const VERTEX_SHADER;
+    static std::string const FRAGMENT_SHADER;
 };

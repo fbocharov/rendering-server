@@ -11,12 +11,11 @@
 class opengl_shader
 {
 public:
-    opengl_shader(GLenum type, std::string const & source_path)
+    opengl_shader(GLenum type, std::string const & shader)
         : handler_(glCreateShader(type))
     {
-        std::string code = load_file_as_string(source_path);
-        char const * code_str = code.c_str();
-        glShaderSource(handler_, 1, &code_str, NULL);
+        char const * code = shader.c_str();
+        glShaderSource(handler_, 1, &code, nullptr);
         glCompileShader(handler_);
     }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <cuda.h>
 
 template<typename T>
 struct scoped_guard
@@ -24,4 +25,14 @@ struct scoped_guard
 private:
     T resource_;
     std::function<void(T&)> dtor_;
+};
+
+class cuda_lock
+{
+public:
+    cuda_lock(CUcontext pCtx) : context_(pCtx) { cuCtxPushCurrent(context_); };
+    ~cuda_lock() { CUcontext cuLast; cuCtxPopCurrent(&cuLast); };
+
+private:
+    CUcontext context_;
 };
