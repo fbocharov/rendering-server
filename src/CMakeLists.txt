@@ -8,6 +8,7 @@ add_subdirectory(render)
 include_directories(
 	${CMAKE_SOURCE_DIR}/include
 	${GL_INCLUDES}
+	${CUDA_INCLUDE_DIRS}
 )
 
 link_directories(
@@ -20,6 +21,8 @@ add_executable(${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME}
 	${OPENGL_LIBRARIES}
+	${CUDA_LIBRARIES}
+	cuda
 	encoder
 	render
 	glew

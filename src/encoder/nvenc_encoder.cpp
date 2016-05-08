@@ -9,8 +9,10 @@
 
 #include "encoder/nvenc_encoder.h"
 #include "encoder/encoder_errors.h"
+#include <iostream>
 
-void rgb_to_nv12(unsigned int * rgb, unsigned char * nv12, unsigned int width, unsigned int height);
+void rgb_to_nv12(unsigned int * rgb, unsigned char * nv12,
+    unsigned int width, unsigned int height, unsigned int nv12_stride);
 
 namespace
 {
@@ -56,44 +58,48 @@ size_t const nvenc_encoder::CUDA_DEVICE_ID = 0; // main video card
 size_t const nvenc_encoder::POOL_SIZE      = 32;
 
 nvenc_encoder::nvenc_encoder(size_t width, size_t height)
-    // TODO: is it possible to pass placeholder instead of reference param?
     : cuda_context_(std::bind(cuda_init, CUDA_DEVICE_ID, std::placeholders::_1), cuda_destroy)
     , backend_(cuda_context_, width, height)
     , buffer_pool_(backend_, cuda_context_, POOL_SIZE, width, height)
     , eos_event_(backend_.create_async_event())
-{
-    self_thread_ = std::thread(std::bind(&nvenc_encoder::encode_loop, this));
-}
+//    , self_thread_(std::bind(&nvenc_encoder::encode_loop, this))
+{}
 
 nvenc_encoder::~nvenc_encoder()
 {
-    shutdown();
+//    shutdown();
+    flush();
     if (eos_event_)
     {
         backend_.destroy_async_event(eos_event_);
     }
 }
 
-void nvenc_encoder::encode(GLuint vbo, std::function<void(void *, size_t)> on_done)
+void nvenc_encoder::encode(GLuint texture, std::function<void(void *, size_t)> on_done)
 {
-    std::lock_guard<std::mutex> lock(guard_);
+//    std::lock_guard<std::mutex> lock(guard_);
 
     encode_buffer * buffer = buffer_pool_.get_available();
     if (!buffer)
     {
         buffer = buffer_pool_.get_pending();
         process_output(buffer);
-        if (buffer->input.input_surface)
+        if (buffer->input.encoder_input)
         {
-            backend_.unmap_input_resource(buffer->input.input_surface);
-            buffer->input.input_surface = nullptr;
+            backend_.unmap_input_resource(buffer->input.encoder_input);
+            buffer->input.encoder_input = nullptr;
         }
         buffer = buffer_pool_.get_available();
     }
-    buffer->input.input_surface = backend_.map_input_resource(buffer->input.nvenc_resource);
+
+    convert_to_nv12(texture, buffer);
+
+    buffer->input.encoder_input = backend_.map_input_resource(buffer->input.nvenc_resource);
     buffer->output.on_encode_done = on_done;
 
-    convert_to_nv12(vbo, buffer);
+    std::cerr << "Pushing for encoding fbo " << texture << std::endl;
+
+    backend_.encode_frame(buffer, buffer->input.width, buffer->input.height);
     ready_to_encode_buffers_.push(buffer);
     ready_buffers_.notify_one();
 }
@@ -124,23 +130,23 @@ void nvenc_encoder::encode_loop()
     flush();
 }
 
-void nvenc_encoder::convert_to_nv12(GLuint texture, encode_buffer * buffer)
+void nvenc_encoder::convert_to_nv12(GLuint rgb_texture, encode_buffer * buffer)
 {
     cuda_lock lock(cuda_context_);
 
     cudaGraphicsResource_t resource;
 
-    cudaGraphicsGLRegisterImage(&resource, texture, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsReadOnly);
+    cudaGraphicsGLRegisterImage(&resource, rgb_texture, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsReadOnly);
     cudaGraphicsMapResources(1, &resource);
 
-    unsigned int * rgb;
     size_t size;
     size_t width = buffer->input.width;
     size_t height = buffer->input.height;
+    unsigned int * rgb;
 
     cudaGraphicsResourceGetMappedPointer((void **) &rgb, &size, resource);
 
-    rgb_to_nv12(rgb, (unsigned char *) buffer->output.bitstream_buffer, width, height);
+    rgb_to_nv12(rgb, buffer->input.nv12_device, width, height, buffer->input.nv12_stride);
 
     cudaGraphicsUnmapResources(1, &resource);
     cudaGraphicsUnregisterResource(resource);
@@ -148,8 +154,17 @@ void nvenc_encoder::convert_to_nv12(GLuint texture, encode_buffer * buffer)
 
 void nvenc_encoder::process_output(encode_buffer * buffer)
 {
-    backend_.lock_bitstream(buffer->output.bitstream_buffer);
-    buffer->output.on_encode_done(buffer->output.bitstream_buffer, buffer->output.bitstream_buffer_size);
+    if (buffer->output.output_event)
+    {
+        if (WaitForSingleObject(buffer->output.output_event, INFINITE) != WAIT_OBJECT_0)
+        {
+            assert(0);
+        }
+    }
+
+    void * bitstream;
+    size_t size = backend_.lock_bitstream(buffer->output.bitstream_buffer, &bitstream);
+    buffer->output.on_encode_done(bitstream, size);
     backend_.unlock_bitstream(buffer->output.bitstream_buffer);
 }
 
@@ -160,13 +175,13 @@ void nvenc_encoder::flush()
     encode_buffer * buffer = buffer_pool_.get_pending();
     while (buffer)
     {
-        buffer = buffer_pool_.get_pending();
         process_output(buffer);
-        if (buffer && buffer->input.input_surface)
+        if (buffer && buffer->input.encoder_input)
         {
-            backend_.unmap_input_resource(buffer->input.input_surface);
-            buffer->input.input_surface = nullptr;
+            backend_.unmap_input_resource(buffer->input.encoder_input);
+            buffer->input.encoder_input = nullptr;
         }
+        buffer = buffer_pool_.get_pending();
     }
 
 #if defined(NV_WINDOWS)

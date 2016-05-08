@@ -9,7 +9,7 @@ struct scoped_guard
     scoped_guard(std::function<void(T&)> const & ctor, std::function<void(T&)> const & dtor)
         : dtor_(dtor)
     {
-        ctor(resource_);
+        ctor(std::ref(resource_));
     }
 
     operator T&()
@@ -19,7 +19,7 @@ struct scoped_guard
 
     ~scoped_guard()
     {
-        dtor_(resource_);
+        dtor_(std::ref(resource_));
     }
 
 private:

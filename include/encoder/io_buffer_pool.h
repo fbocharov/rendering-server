@@ -11,10 +11,10 @@ struct input_buffer
 {
     size_t width;
     size_t height;
-    CUdeviceptr nv12_device;
-    size_t      nv12_stride;
-    void *      nvenc_resource; /* After registering cuda memory in nvenc this field stores pointer to it. */
-    NV_ENC_INPUT_PTR     input_surface;
+    unsigned char * nv12_device;
+    size_t nv12_stride;
+    void * nvenc_resource; /* After registering cuda memory in nvenc this field stores pointer to it. */
+    NV_ENC_INPUT_PTR     encoder_input;
     NV_ENC_BUFFER_FORMAT buffer_fmt;
 };
 
@@ -45,11 +45,11 @@ private:
     void destroy();
 
 private:
-    std::vector<encode_buffer> buffers_;
-    size_t pending_count_;
-    size_t available_ix_;
-    size_t pending_ix_;
-
     nvenc_backend & backend_;
     CUcontext & context_;
+
+    std::vector<encode_buffer> buffers_;
+    size_t available_ix_;
+    size_t pending_count_;
+    size_t pending_ix_;
 };

@@ -44,6 +44,7 @@ namespace
 
 nvenc_backend::nvenc_backend(CUcontext cuda_device, size_t width, size_t height)
     : library_(load_library, unload_library)
+    , encode_frames_timestamp_(0)
 {
     create_api_instance();
     open_encode_session(cuda_device);
@@ -99,13 +100,16 @@ void nvenc_backend::destroy_bitstream_buffer(NV_ENC_OUTPUT_PTR bitstream_buffer)
     }
 }
 
-void nvenc_backend::lock_bitstream(void * bitstream)
+uint32_t nvenc_backend::lock_bitstream(void * bitstream, void ** out_bitstream)
 {
     NV_ENC_LOCK_BITSTREAM params = {};
     SET_VER(params, NV_ENC_LOCK_BITSTREAM);
     params.outputBitstream = bitstream;
     params.doNotWait = false;
     __nvenc_throw(api_->nvEncLockBitstream(encoder_, &params));
+
+    *out_bitstream = params.bitstreamBufferPtr;
+    return params.bitstreamSizeInBytes;
 }
 
 void nvenc_backend::unlock_bitstream(void * bitstream)
@@ -179,22 +183,27 @@ void nvenc_backend::send_eos(void * event)
 
 void nvenc_backend::encode_frame(encode_buffer * frame, uint32_t width, uint32_t height)
 {
+//    std::cout << "Encoding frame..." << std::endl;
+
     NV_ENC_PIC_PARAMS params = {};
 
     SET_VER(params, NV_ENC_PIC_PARAMS);
-    params.inputBuffer = frame->input.input_surface;
+    params.inputBuffer = frame->input.encoder_input;
     params.bufferFmt = frame->input.buffer_fmt;
     params.inputWidth = width;
     params.inputHeight = height;
-    params.outputBitstream = frame->input.input_surface;
+    params.outputBitstream = frame->output.bitstream_buffer;
     params.completionEvent = frame->output.output_event;
     params.inputTimeStamp = encode_frames_timestamp_;
+    params.pictureStruct = NV_ENC_PIC_STRUCT_FRAME;
 
     NVENCSTATUS nvStatus = api_->nvEncEncodePicture(encoder_, &params);
     if (nvStatus != NV_ENC_SUCCESS && nvStatus != NV_ENC_ERR_NEED_MORE_INPUT)
     {
         throw nvenc_exception("Can't encode frame.");
     }
+
+//    std::cout << "done!" << std::endl;
 
     ++encode_frames_timestamp_;
 }
@@ -219,6 +228,7 @@ void nvenc_backend::create_api_instance()
 void nvenc_backend::open_encode_session(CUcontext cuda_device)
 {
     NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS params = {};
+    SET_VER(params, NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS);
     params.device = cuda_device;
     params.deviceType = NV_ENC_DEVICE_TYPE_CUDA;
     params.apiVersion = NVENCAPI_VERSION;
@@ -236,49 +246,52 @@ void nvenc_backend::open_encode_session(CUcontext cuda_device)
 // See it there: http://goo.gl/TGBDqd
 void nvenc_backend::init_encoder(size_t width, size_t height)
 {
-    NV_ENC_INITIALIZE_PARAMS params = {};
-    SET_VER(params, NV_ENC_INITIALIZE_PARAMS);
+    SET_VER(encode_params_, NV_ENC_INITIALIZE_PARAMS);
 
-    params.encodeGUID = NV_ENC_CODEC_H264_GUID;
-    params.presetGUID = NV_ENC_PRESET_LOW_LATENCY_HQ_GUID;
-    params.encodeWidth = width;
-    params.encodeHeight = height;
+    encode_params_.encodeGUID = NV_ENC_CODEC_H264_GUID;
+    encode_params_.presetGUID = NV_ENC_PRESET_DEFAULT_GUID;
+    encode_params_.encodeWidth = width;
+    encode_params_.encodeHeight = height;
 
-    params.darWidth = width;
-    params.darHeight = height;
-    params.frameRateNum = 30; // Set desired FPS there
-    params.frameRateDen = 1;
+    encode_params_.darWidth = width;
+    encode_params_.darHeight = height;
+    encode_params_.frameRateNum = 30; // Set desired FPS there
+    encode_params_.frameRateDen = 1;
 #if defined(NV_WINDOWS)
-    params.enableEncodeAsync = 1;
+    encode_params_.enableEncodeAsync = 1;
 #else
     m_stCreateEncodeParams.enableEncodeAsync = 0;
 #endif
-    params.enablePTD = 1;
-    params.maxEncodeWidth = width;
-    params.maxEncodeHeight = height;
+    encode_params_.enablePTD = 1;
+    encode_params_.enableSubFrameWrite = 0;
+    encode_params_.maxEncodeWidth = width;
+    encode_params_.maxEncodeHeight = height;
 
     NV_ENC_PRESET_CONFIG preset_config = {};
     SET_VER(preset_config, NV_ENC_PRESET_CONFIG);
     SET_VER(preset_config.presetCfg, NV_ENC_CONFIG);
-    __nvenc_throw(api_->nvEncGetEncodePresetConfig(encoder_, params.encodeGUID, params.presetGUID, &preset_config));
+    __nvenc_throw(api_->nvEncGetEncodePresetConfig(encoder_, encode_params_.encodeGUID, encode_params_.presetGUID, &preset_config));
 
-    NV_ENC_CONFIG encode_config = {};
-    SET_VER(encode_config, NV_ENC_CONFIG);
-    memcpy(&encode_config, &preset_config.presetCfg, sizeof(NV_ENC_CONFIG));
-    params.encodeConfig = &encode_config;
+    SET_VER(encode_config_, NV_ENC_CONFIG);
+    memcpy(&encode_config_, &preset_config.presetCfg, sizeof(NV_ENC_CONFIG));
+    encode_params_.encodeConfig = &encode_config_;
 
-    encode_config.gopLength = NVENC_INFINITE_GOPLENGTH;
-    encode_config.frameIntervalP = 1;
-    encode_config.frameFieldMode = NV_ENC_PARAMS_FRAME_FIELD_MODE_FRAME;
+    encode_config_.gopLength = NVENC_INFINITE_GOPLENGTH;
+    encode_config_.frameIntervalP = 1;
+    encode_config_.frameFieldMode = NV_ENC_PARAMS_FRAME_FIELD_MODE_FRAME;
 
-    encode_config.mvPrecision = NV_ENC_MV_PRECISION_QUARTER_PEL;
+    encode_config_.mvPrecision = NV_ENC_MV_PRECISION_QUARTER_PEL;
 
-    encode_config.rcParams.enableAQ = 1;
-    encode_config.rcParams.rateControlMode = NV_ENC_PARAMS_RC_2_PASS_QUALITY;
-    encode_config.rcParams.averageBitRate = 5000000; // set desired bitrate there
+    encode_config_.rcParams.rateControlMode = NV_ENC_PARAMS_RC_CONSTQP;
+    encode_config_.rcParams.constQP.qpInterB = 28;
+    encode_config_.rcParams.constQP.qpInterP = 28;
+    encode_config_.rcParams.constQP.qpIntra  = 28;
 
-    encode_config.encodeCodecConfig.h264Config.chromaFormatIDC = 1;
-    encode_config.encodeCodecConfig.h264Config.idrPeriod = NVENC_INFINITE_GOPLENGTH;
+    //    encode_config_.rcParams.enableAQ = 1;
+    encode_config_.rcParams.averageBitRate = 5000000; // set desired bitrate there
 
-    __nvenc_throw(api_->nvEncInitializeEncoder(encoder_, &params));
+    encode_config_.encodeCodecConfig.h264Config.chromaFormatIDC = 1;
+    encode_config_.encodeCodecConfig.h264Config.idrPeriod = NVENC_INFINITE_GOPLENGTH;
+
+    __nvenc_throw(api_->nvEncInitializeEncoder(encoder_, &encode_params_));
 }

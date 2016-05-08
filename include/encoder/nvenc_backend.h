@@ -20,8 +20,8 @@ public:
     /// returns created buffer
     void * create_bitstream_buffer(uint32_t size);
     void  destroy_bitstream_buffer(NV_ENC_OUTPUT_PTR bitstream_buffer);
-    void lock_bitstream(void* bistream);
-    void unlock_bitstream(void* bitstream);
+    uint32_t lock_bitstream(void * bistream, void ** out_bitstream);
+    void unlock_bitstream(void * bitstream);
     /// returns created event
     void * create_async_event();
     void  destroy_async_event(void * event);
@@ -47,4 +47,6 @@ private:
     size_t encode_frames_timestamp_;
 
     void * encoder_;
+    NV_ENC_INITIALIZE_PARAMS encode_params_ = {};
+    NV_ENC_CONFIG encode_config_ = {};
 };
