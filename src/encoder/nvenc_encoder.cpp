@@ -11,7 +11,7 @@
 #include "encoder/encoder_errors.h"
 #include <iostream>
 
-void rgb_to_nv12(unsigned int * rgb, unsigned char * nv12,
+void rgb_to_nv12(cudaArray_t rgb, unsigned char * nv12,
     unsigned int width, unsigned int height, unsigned int nv12_stride);
 
 namespace
@@ -136,17 +136,27 @@ void nvenc_encoder::convert_to_nv12(GLuint rgb_texture, encode_buffer * buffer)
 
     cudaGraphicsResource_t resource;
 
-    cudaGraphicsGLRegisterImage(&resource, rgb_texture, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsReadOnly);
-    cudaGraphicsMapResources(1, &resource);
+    cudaError_t ret;
+    ret = cudaGraphicsGLRegisterImage(&resource, rgb_texture, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsReadOnly);
+    if (ret != cudaSuccess)
+    {
+        throw cuda_exception(cudaGetErrorString(ret));
+    }
+    ret = cudaGraphicsMapResources(1, &resource);
+    if (ret != cudaSuccess)
+    {
+        throw cuda_exception(cudaGetErrorString(ret));
+    }
 
-    size_t size;
-    size_t width = buffer->input.width;
-    size_t height = buffer->input.height;
-    unsigned int * rgb;
+    cudaArray_t rgb;
+    ret = cudaGraphicsSubResourceGetMappedArray(&rgb, resource, 0, 0);
+    if (ret != cudaSuccess)
+    {
+        throw cuda_exception(cudaGetErrorString(ret));
+    }
 
-    cudaGraphicsResourceGetMappedPointer((void **) &rgb, &size, resource);
-
-    rgb_to_nv12(rgb, buffer->input.nv12_device, width, height, buffer->input.nv12_stride);
+    rgb_to_nv12(rgb, buffer->input.nv12_device, 
+        buffer->input.width, buffer->input.height, buffer->input.nv12_stride);
 
     cudaGraphicsUnmapResources(1, &resource);
     cudaGraphicsUnregisterResource(resource);
