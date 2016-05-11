@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <functional>
 
 #include <GL/glew.h>
 #include <glm/vec2.hpp>
@@ -14,7 +15,7 @@ class opengl_render
 public:
     explicit opengl_render(glm::uvec2 const & size);
 
-    void draw(size_t frame_count);
+    void draw(size_t frame_count, std::function<void(GLuint)> on_render);
 
 private:
     void render();
@@ -28,7 +29,6 @@ private:
     glm::vec4 viewport_;
 
 private:
-    static size_t const TEXTURE_COUNT = 3;
     static std::string const VERTEX_SHADER;
     static std::string const FRAGMENT_SHADER;
 };

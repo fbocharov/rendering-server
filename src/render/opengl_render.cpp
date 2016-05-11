@@ -3,6 +3,7 @@
 #include <glm/vec4.hpp>
 
 #include "render/opengl_render.h"
+#include <iostream>
 
 
 std::string const opengl_render::VERTEX_SHADER =
@@ -60,12 +61,12 @@ opengl_render::opengl_render(glm::uvec2 const & size)
     }
 }
 
-void opengl_render::draw(size_t frame_count)
+void opengl_render::draw(size_t frame_count, std::function<void(GLuint)> on_render)
 {
     for (size_t i = 0; i < frame_count; ++i)
     {
         render();
-        // TODO: callback encoder
+        on_render(texture_);
     }
 }
 
@@ -74,22 +75,27 @@ size_t counter = 0;
 void opengl_render::render()
 {
     glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
-    GLenum draw_buffers[1] = { GL_COLOR_ATTACHMENT0 };
-    glDrawBuffers(1, draw_buffers);
 
     if ((counter++ / 50) % 2)
     {
-        glClearBufferfv(GL_COLOR, 0, &glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)[0]);
+        glClearBufferfv(GL_COLOR, 0, &glm::vec4(0.0f, 0.0f, 1.0f, 0.0f)[0]);
     }
     else
     {
-        glClearBufferfv(GL_COLOR, 0, &glm::vec4(1.0f, 1.0f, 0.0f, 0.0f)[0]);
+        glClearBufferfv(GL_COLOR, 0, &glm::vec4(0.0f, 1.0f, 0.0f, 0.0f)[0]);
     }
+    GLenum draw_buffers[1] = { GL_COLOR_ATTACHMENT0 };
+    glDrawBuffers(1, draw_buffers);
 
     glUseProgram(program_);
     glUniform1i(shader_diffuse_, 0);
     glBindVertexArray(array_);
 
-    glViewport(GLint(viewport_.x), GLint(viewport_.y),
-        GLsizei(viewport_.z), GLsizei(viewport_.w));
+//    glViewport(GLint(viewport_.x), GLint(viewport_.y),
+//        GLsizei(viewport_.z), GLsizei(viewport_.w));
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, texture_);
+    glDrawArraysInstanced(GL_TRIANGLES, 0, 3, 1);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }

@@ -2,7 +2,6 @@
 
 #include <string>
 #include <vector>
-#include <fstream>
 
 #include <GL/glew.h>
 #include <glm/vec2.hpp>
@@ -27,14 +26,6 @@ public:
     ~opengl_shader()
     {
         glDeleteShader(handler_);
-    }
-
-private:
-    // need move this to utils?
-    std::string load_file_as_string(std::string const & path)
-    {
-        std::fstream file(path);
-        return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
     }
 
 private:

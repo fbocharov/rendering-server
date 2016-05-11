@@ -1,7 +1,11 @@
 #include <iostream>
+#include <functional>
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+
+#include "encoder/nvenc_encoder.h"
+#include "encoder/encoder_errors.h"
 
 #include "render/opengl_render.h"
 
@@ -26,15 +30,40 @@ void init_graphics()
     glGetError();
 }
 
+
 int main(int argc, char * argv[])
 {
+    using namespace std::placeholders;
+
     init_graphics();
 
-    opengl_render render({640, 480});
-    render.draw(100);
-    std::cout << "Hello world!" << std::endl;
+    FILE * file = fopen("out.mp4", "wb");
+    int frame = 0;
+
+    auto dump_to_file = [&file, &frame] (void * data, size_t size)
+    {
+        std::cout << "CALLBACK: writing " << size << " bytes in " << frame++ << " frame" << std::endl;
+        fwrite(data, 1, size, file);
+        fflush(file);
+    };
+
+
+    size_t width = 720, height = 480;
+    try
+    {
+        opengl_render render({width, height});
+        nvenc_encoder encoder(width, height);
+
+        auto on_render = std::bind(&nvenc_encoder::encode, std::ref(encoder), _1, dump_to_file);
+        render.draw(500, on_render);
+    }
+    catch (encoder_exception & e)
+    {
+        std::cerr << e.what() << std::endl;
+    }
 
     glfwDestroyWindow(window);
+    fclose(file);
 
     return 0;
 }
