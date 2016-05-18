@@ -16,7 +16,7 @@ void __rgb_to_nv12(unsigned char * nv12,
 
     if ((i < width) && (j < height))
     {
-        uchar4 pixel = tex2D(rgb_texture, i, j);
+        uchar4 pixel = tex2D(rgb_texture, width - i - 1, height - j - 1);
         unsigned int b = pixel.x;
         unsigned int g = pixel.y;
         unsigned int r = pixel.z;

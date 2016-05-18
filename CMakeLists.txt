@@ -14,6 +14,14 @@ set(GL_INCLUDES
 	${CMAKE_SOURCE_DIR}/thirdparty/glm/include
 )
 
+set(SOIL_INCLUDES
+	${CMAKE_SOURCE_DIR}/thirdparty/soil/include
+)
+
+set(SOIL_LINK_DIRS
+	${CMAKE_SOURCE_DIR}/thirdparty/soil/lib
+)
+
 if (CMAKE_BUILD_TYPE EQUAL "RELEASE")
 	set(GL_LINK_DIRS
 		${CMAKE_SOURCE_DIR}/thirdparty/opengl/lib/x64/Release
@@ -24,9 +32,6 @@ else()
 	)
 endif()
 
-message(STATUS "gl link dirs: " ${GL_LINK_DIRS})
-
 add_definitions(/DGLEW_STATIC)
-
 
 add_subdirectory(src)

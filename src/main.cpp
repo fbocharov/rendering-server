@@ -21,7 +21,7 @@ void init_graphics()
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
 
-    window = glfwCreateWindow(640, 480, "hello world", nullptr, nullptr);
+    window = glfwCreateWindow(800, 600, "hello world", nullptr, nullptr);
     glfwMakeContextCurrent(window);
 
     glewExperimental = GL_TRUE;
@@ -31,24 +31,35 @@ void init_graphics()
 }
 
 
+size_t get_nalu_size(char const * frame, size_t size)
+{
+    for (size_t i = 4; i + 3 < size; ++i)
+        if (frame[i] == frame[i + 1] == frame[i + 2] == 0x0 && frame[i + 3] == 0x1)
+            return i;
+
+    return size;
+}
+
 int main(int argc, char * argv[])
 {
     using namespace std::placeholders;
 
     init_graphics();
 
-    FILE * file = fopen("out.mp4", "wb");
+    FILE * file = fopen("outtt.mp4", "wb");
     int frame = 0;
 
     auto dump_to_file = [&file, &frame] (void * data, size_t size)
     {
+        size_t nalu_size = get_nalu_size((char const *)data, size);
+        fwrite(data, 1, nalu_size, file);
+        fwrite((char *)data + nalu_size, 1, size - nalu_size, file);
         std::cout << "CALLBACK: writing " << size << " bytes in " << frame++ << " frame" << std::endl;
-        fwrite(data, 1, size, file);
         fflush(file);
     };
 
-
-    size_t width = 720, height = 480;
+    size_t width = 800;
+    size_t height = 600;
     try
     {
         opengl_render render({width, height});

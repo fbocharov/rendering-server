@@ -7,13 +7,12 @@
 #include <glm/vec2.hpp>
 #include <glm/vec4.hpp>
 
-#include "opengl_wrappers.h"
-
 
 class opengl_render
 {
 public:
     explicit opengl_render(glm::uvec2 const & size);
+    ~opengl_render();
 
     void draw(size_t frame_count, std::function<void(GLuint)> on_render);
 
@@ -21,14 +20,17 @@ private:
     void render();
 
 private:
-    opengl_program program_;
-    opengl_fbo fbo_;
-    opengl_texture texture_;
-    opengl_vertex_array array_;
-    GLuint shader_diffuse_;
-    glm::vec4 viewport_;
-
-private:
-    static std::string const VERTEX_SHADER;
-    static std::string const FRAGMENT_SHADER;
+    GLuint vaoCube, vaoQuad;
+    GLuint vboCube, vboQuad;
+    GLuint sceneVertexShader, sceneFragmentShader, sceneShaderProgram;
+    GLuint screenVertexShader, screenFragmentShader, screenShaderProgram;
+    GLuint texKitten, texPuppy;
+    GLint uniModel;
+    GLuint frameBuffer;
+    GLuint texColorBuffer;
+    GLuint rboDepthStencil;
+    GLint uniView;
+    GLint uniProj;
+    GLint uniColor;
+    std::chrono::time_point<std::chrono::high_resolution_clock> t_start;
 };

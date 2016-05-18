@@ -13,6 +13,7 @@ include_directories(
 
 link_directories(
 	${GL_LINK_DIRS}
+	${SOIL_LINK_DIRS}
 )
 
 add_executable(${PROJECT_NAME}

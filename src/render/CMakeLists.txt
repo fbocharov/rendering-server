@@ -5,12 +5,14 @@ project(render)
 include_directories(
 	${CMAKE_SOURCE_DIR}/include
 	${GL_INCLUDES}
+	${SOIL_INCLUDES}
 )
 
 file(GLOB_RECURSE SOURCES "*.cpp")
 
 link_directories(
 	${GL_LINK_DIRS}
+	${SOIL_LINK_DIRS}
 )
 
 add_library(${PROJECT_NAME}
@@ -21,4 +23,5 @@ target_link_libraries(${PROJECT_NAME}
 	${OPENGL_LIBRARIES}
 	glew
 	glfw3
+	SOIL
 )
